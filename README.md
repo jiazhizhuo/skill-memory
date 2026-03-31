@@ -97,6 +97,42 @@ The skill can be used as a tool by OpenClaw agents:
 //memory search 用户的视觉偏好
 ```
 
+## Configuration
+
+### Quick Setup with .env File (Recommended)
+
+```bash
+# Copy example config
+cp .env.example .env
+
+# Edit with your API keys
+nano .env
+
+# CLI automatically loads .env
+memory add "test"
+```
+
+### Manual Environment Variables
+
+```bash
+# MiniMax Configuration
+export LLM_PROVIDER=minimax
+export EMBEDDING_PROVIDER=minimax
+export MINIMAX_API_KEY=your_api_key
+export MEM0_BACKEND=qdrant
+```
+
+### Configuration Options
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `MEM0_BACKEND` | `in-memory` | `in-memory` or `qdrant` |
+| `LLM_PROVIDER` | `openai` | `openai` or `minimax` |
+| `EMBEDDING_PROVIDER` | `openai` | `openai` or `minimax` |
+| `MINIMAX_API_KEY` | - | MiniMax API key |
+| `QDRANT_HOST` | `localhost` | Qdrant server host |
+| `QDRANT_PORT` | `6333` | Qdrant server port |
+
 ## Hybrid Search
 
 Based on OpenClaw's search architecture:

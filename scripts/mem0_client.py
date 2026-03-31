@@ -5,6 +5,10 @@ Based on OpenClaw's hybrid search architecture.
 Supports multiple backends:
 - in-memory: For testing/development (no external dependencies)
 - qdrant: Production use (persistent, scalable)
+
+Supports multiple embedding providers:
+- openai: Default (requires OPENAI_API_KEY)
+- minimax: MiniMax embedding (requires MINIMAX_API_KEY)
 """
 
 import os
@@ -16,7 +20,105 @@ from config.defaults import (
     QDRANT_PORT,
     QDRANT_COLLECTION,
     DEFAULT_TOP_K,
+    MINIMAX_LLM_BASE_URL,
+    MINIMAX_LLM_MODEL,
+    MINIMAX_EMBEDDING_BASE_URL,
+    MINIMAX_EMBEDDING_MODEL,
 )
+
+
+def _get_llm_config() -> dict:
+    """
+    Get LLM configuration from environment variables.
+    
+    Supported providers:
+    - MINIMAX: Use MiniMax LLM API
+      - LLM_PROVIDER=minimax
+      - MINIMAX_API_KEY: MiniMax API key
+      - MINIMAX_LLM_MODEL: Model name (default: MiniMax-M2.7)
+      - MINIMAX_LLM_BASE_URL: API base URL (default: https://api.minimax.io/v1)
+    - OPENAI: Use OpenAI LLM (default fallback)
+      - OPENAI_API_KEY: OpenAI API key
+    """
+    provider = os.environ.get("LLM_PROVIDER", "openai").lower()
+    
+    if provider == "minimax":
+        api_key = os.environ.get("MINIMAX_API_KEY")
+        if not api_key:
+            api_key = os.environ.get("OPENAI_API_KEY", "")
+        
+        model = os.environ.get("MINIMAX_LLM_MODEL", MINIMAX_LLM_MODEL)
+        base_url = os.environ.get("MINIMAX_LLM_BASE_URL", MINIMAX_LLM_BASE_URL)
+        
+        return {
+            "provider": "minimax",
+            "config": {
+                "api_key": api_key,
+                "model": model,
+                "minimax_base_url": base_url,
+            }
+        }
+    
+    # Default: OpenAI
+    return {
+        "provider": "openai",
+        "config": {
+            "api_key": os.environ.get("OPENAI_API_KEY", ""),
+        }
+    }
+
+
+def _get_embedding_config() -> dict:
+    """
+    Get embedding configuration from environment variables.
+    
+    Supported providers:
+    - MINIMAX: Use MiniMax embedding API
+      - EMBEDDING_PROVIDER=minimax
+      - MINIMAX_API_KEY: MiniMax API key
+      - MINIMAX_EMBEDDING_MODEL: Model name (default: emb-o1)
+      - MINIMAX_EMBEDDING_BASE_URL: API base URL
+    - OPENAI: Use OpenAI embedding (default fallback)
+      - OPENAI_API_KEY: OpenAI API key
+      - OPENAI_BASE_URL: Custom base URL (optional)
+    """
+    provider = os.environ.get("EMBEDDING_PROVIDER", "openai").lower()
+    
+    if provider == "minimax":
+        api_key = os.environ.get("MINIMAX_API_KEY")
+        if not api_key:
+            api_key = os.environ.get("OPENAI_API_KEY", "")
+        
+        model = os.environ.get("MINIMAX_EMBEDDING_MODEL", MINIMAX_EMBEDDING_MODEL)
+        
+        return {
+            "provider": "openai",
+            "config": {
+                "api_key": api_key,
+                "model": model,
+            }
+        }
+    
+    # Default: OpenAI
+    return {
+        "provider": "openai",
+        "config": {
+            "api_key": os.environ.get("OPENAI_API_KEY", ""),
+        }
+    }
+
+
+def _setup_embedding_env():
+    """Set up environment variables for embedding provider."""
+    provider = os.environ.get("EMBEDDING_PROVIDER", "").lower()
+    
+    if provider == "minimax":
+        # mem0 openai embedding reads from OPENAI_BASE_URL
+        base_url = os.environ.get(
+            "MINIMAX_EMBEDDING_BASE_URL", 
+            MINIMAX_EMBEDDING_BASE_URL
+        )
+        os.environ.setdefault("OPENAI_BASE_URL", base_url)
 
 
 class Mem0Client:
@@ -26,6 +128,10 @@ class Mem0Client:
     Supports multiple backends:
     - in-memory: Default for testing
     - qdrant: For production with persistent storage
+    
+    Supports multiple embedding providers (via EMBEDDING_PROVIDER env):
+    - minimax: MiniMax embedding (default if MINIMAX_API_KEY is set)
+    - openai: OpenAI embedding (default fallback)
     """
 
     def __init__(self, user_id: str = "default", backend: str = None):
@@ -35,10 +141,15 @@ class Mem0Client:
         if backend is None:
             backend = os.environ.get("MEM0_BACKEND", "in-memory")
 
+        # Get LLM and embedding configs
+        llm_config = _get_llm_config()
+        embed_config = _get_embedding_config()
+
         if backend == "qdrant":
             # Production mode: uses Qdrant
             from qdrant_client import QdrantClient
             self.memory = Memory.from_config({
+                "llm": llm_config,
                 "vector_store": {
                     "provider": "qdrant",
                     "config": {
@@ -46,12 +157,16 @@ class Mem0Client:
                         "port": QDRANT_PORT,
                         "collection_name": QDRANT_COLLECTION,
                     }
-                }
+                },
+                "embedder": embed_config,
             })
         else:
             # Development/testing mode: in-memory
             # Requires only: pip install mem0ai
-            self.memory = Memory()
+            self.memory = Memory.from_config({
+                "llm": llm_config,
+                "embedder": embed_config,
+            })
 
     def add(
         self,
