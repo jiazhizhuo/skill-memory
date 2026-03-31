@@ -17,7 +17,11 @@ from pathlib import Path
 
 
 def _load_env():
-    """Load environment variables from .env file."""
+    """Load environment variables from .env file.
+    
+    Adds SKILL_MEMORY_ prefix to all variables to avoid conflicts.
+    Uses setdefault so existing env vars are not overwritten.
+    """
     env_file = Path(__file__).parent.parent / ".env"
     if env_file.exists():
         with open(env_file) as f:
@@ -25,7 +29,11 @@ def _load_env():
                 line = line.strip()
                 if line and not line.startswith("#") and "=" in line:
                     key, value = line.split("=", 1)
-                    os.environ.setdefault(key.strip(), value.strip())
+                    key = key.strip()
+                    # Add SKILL_MEMORY_ prefix if not already present
+                    if not key.startswith("SKILL_MEMORY_"):
+                        key = "SKILL_MEMORY_" + key
+                    os.environ.setdefault(key, value.strip())
 
 
 # Load .env before importing modules that use env vars
