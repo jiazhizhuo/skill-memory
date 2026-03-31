@@ -1,18 +1,20 @@
 """
 Mem0 client wrapper for vector storage.
 Based on OpenClaw's hybrid search architecture.
+
+Supports multiple backends:
+- in-memory: For testing/development (no external dependencies)
+- qdrant: Production use (persistent, scalable)
 """
 
+import os
 from typing import Optional, List
 from mem0 import Memory
-from qdrant_client import QdrantClient
 
 from config.defaults import (
     QDRANT_HOST,
     QDRANT_PORT,
     QDRANT_COLLECTION,
-    VECTOR_WEIGHT,
-    KEYWORD_WEIGHT,
     DEFAULT_TOP_K,
 )
 
@@ -21,20 +23,35 @@ class Mem0Client:
     """
     Mem0 wrapper with OpenClaw-style hybrid search.
 
-    Combines:
-    - Vector search (semantic similarity)
-    - Keyword search (BM25 style)
-    - MMR reranking (diversity)
-    - Temporal decay (recency bias)
+    Supports multiple backends:
+    - in-memory: Default for testing
+    - qdrant: For production with persistent storage
     """
 
-    def __init__(self, user_id: str = "default"):
+    def __init__(self, user_id: str = "default", backend: str = None):
         self.user_id = user_id
-        self.memory = Memory()  # Uses Qdrant by default
-        self.qdrant = QdrantClient(
-            host=QDRANT_HOST,
-            port=QDRANT_PORT
-        )
+
+        # Auto-detect backend from environment or default to in-memory
+        if backend is None:
+            backend = os.environ.get("MEM0_BACKEND", "in-memory")
+
+        if backend == "qdrant":
+            # Production mode: uses Qdrant
+            from qdrant_client import QdrantClient
+            self.memory = Memory.from_config({
+                "vector_store": {
+                    "provider": "qdrant",
+                    "config": {
+                        "host": QDRANT_HOST,
+                        "port": QDRANT_PORT,
+                        "collection_name": QDRANT_COLLECTION,
+                    }
+                }
+            })
+        else:
+            # Development/testing mode: in-memory
+            # Requires only: pip install mem0ai
+            self.memory = Memory()
 
     def add(
         self,

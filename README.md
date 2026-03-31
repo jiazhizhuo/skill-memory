@@ -37,12 +37,30 @@ pip install -e .
 
 ## Prerequisites
 
-1. **Qdrant** (vector database):
-   ```bash
-   docker run -d -p 6333:6333 qdrant/qdrant
-   ```
+### Option A: In-Memory Mode (Default, No Setup)
 
-2. **Mem0** (installed automatically via pip)
+```bash
+# Just install, no external dependencies needed
+pip install mem0ai
+```
+
+### Option B: Qdrant Mode (Production, Persistent)
+
+```bash
+# Start Qdrant via Docker
+docker run -d -p 6333:6333 qdrant/qdrant
+
+# Or via Homebrew (macOS)
+brew install qdrant
+qdrant
+
+# Set environment variable
+export MEM0_BACKEND=qdrant
+```
+
+### Option C: Other Vector Databases
+
+Mem0 also supports Chroma, PGVector, Pinecone, Redis, etc. See [Mem0 docs](https://docs.mem0.ai/components/vectordbs/overview).
 
 ## Usage
 
