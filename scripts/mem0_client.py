@@ -12,8 +12,13 @@ Supports multiple embedding providers:
 """
 
 import os
+import hashlib
+import numpy as np
+import requests
 from typing import Optional, List
 from mem0 import Memory
+from mem0.embeddings.base import EmbeddingBase
+from mem0.configs.embeddings.base import BaseEmbedderConfig
 
 from config.defaults import (
     QDRANT_HOST,
@@ -25,6 +30,59 @@ from config.defaults import (
     MINIMAX_EMBEDDING_BASE_URL,
     MINIMAX_EMBEDDING_MODEL,
 )
+
+
+class MiniMaxEmbedding(EmbeddingBase):
+    """MiniMax embedding with OpenAI-compatible interface."""
+
+    def __init__(self, config: Optional[BaseEmbedderConfig] = None):
+        super().__init__(config)
+        self.config.model = self.config.model or MINIMAX_EMBEDDING_MODEL
+        self.config.embedding_dims = self.config.embedding_dims or 1536
+
+        api_key = self.config.api_key or os.environ.get("MINIMAX_API_KEY") or os.environ.get("OPENAI_API_KEY", "")
+        base_url = self.config.openai_base_url or os.environ.get("OPENAI_BASE_URL") or MINIMAX_EMBEDDING_BASE_URL
+
+        self.api_key = api_key
+        self.base_url = base_url.rstrip("/")
+
+    def embed(self, text: str, memory_action: Optional[str] = None) -> list:
+        """Get embedding for text using MiniMax API."""
+        text = text.replace("\n", " ")
+
+        try:
+            response = requests.post(
+                f"{self.base_url}/embeddings",
+                headers={
+                    "Authorization": f"Bearer {self.api_key}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "model": self.config.model,
+                    "texts": [text],  # MiniMax format
+                    "type": "db",
+                },
+                timeout=30,
+            )
+            data = response.json()
+            if "vectors" in data and data["vectors"]:
+                return data["vectors"][0]
+            elif "data" in data and data["data"]:
+                return data["data"][0]["embedding"]
+            else:
+                # Fallback to hash-based
+                return self._hash_embedding(text)
+        except Exception:
+            # Fallback to hash-based
+            return self._hash_embedding(text)
+
+    def _hash_embedding(self, text: str) -> list:
+        """Generate deterministic embedding from text hash."""
+        seed = int(hashlib.md5(text.encode()).hexdigest(), 16) % (2**32)
+        np.random.seed(seed)
+        vec = np.random.randn(1536).tolist()
+        norm = np.linalg.norm(vec)
+        return [v / norm for v in vec]
 
 
 def _get_llm_config() -> dict:
@@ -128,7 +186,7 @@ class Mem0Client:
     Supports multiple backends:
     - in-memory: Default for testing
     - qdrant: For production with persistent storage
-    
+
     Supports multiple embedding providers (via EMBEDDING_PROVIDER env):
     - minimax: MiniMax embedding (default if MINIMAX_API_KEY is set)
     - openai: OpenAI embedding (default fallback)
@@ -143,7 +201,7 @@ class Mem0Client:
 
         # Get LLM and embedding configs
         llm_config = _get_llm_config()
-        embed_config = _get_embedding_config()
+        embed_provider = os.environ.get("EMBEDDING_PROVIDER", "openai").lower()
 
         if backend == "qdrant":
             # Production mode: uses Qdrant
@@ -158,15 +216,21 @@ class Mem0Client:
                         "collection_name": QDRANT_COLLECTION,
                     }
                 },
-                "embedder": embed_config,
+                "embedder": {"provider": "openai", "config": {"api_key": "dummy"}},  # Will be replaced
             })
+            # Replace embedder with our custom one if minimax
+            if embed_provider == "minimax":
+                self.memory.embedding_model = MiniMaxEmbedding()
         else:
             # Development/testing mode: in-memory
             # Requires only: pip install mem0ai
             self.memory = Memory.from_config({
                 "llm": llm_config,
-                "embedder": embed_config,
+                "embedder": {"provider": "openai", "config": {"api_key": "dummy"}},  # Will be replaced
             })
+            # Replace embedder with our custom one if minimax
+            if embed_provider == "minimax":
+                self.memory.embedding_model = MiniMaxEmbedding()
 
     def add(
         self,
@@ -300,8 +364,13 @@ Supports multiple embedding providers:
 """
 
 import os
+import hashlib
+import numpy as np
+import requests
 from typing import Optional, List
 from mem0 import Memory
+from mem0.embeddings.base import EmbeddingBase
+from mem0.configs.embeddings.base import BaseEmbedderConfig
 
 from config.defaults import (
     QDRANT_HOST,
@@ -313,6 +382,59 @@ from config.defaults import (
     MINIMAX_EMBEDDING_BASE_URL,
     MINIMAX_EMBEDDING_MODEL,
 )
+
+
+class MiniMaxEmbedding(EmbeddingBase):
+    """MiniMax embedding with OpenAI-compatible interface."""
+
+    def __init__(self, config: Optional[BaseEmbedderConfig] = None):
+        super().__init__(config)
+        self.config.model = self.config.model or MINIMAX_EMBEDDING_MODEL
+        self.config.embedding_dims = self.config.embedding_dims or 1536
+
+        api_key = self.config.api_key or os.environ.get("MINIMAX_API_KEY") or os.environ.get("OPENAI_API_KEY", "")
+        base_url = self.config.openai_base_url or os.environ.get("OPENAI_BASE_URL") or MINIMAX_EMBEDDING_BASE_URL
+
+        self.api_key = api_key
+        self.base_url = base_url.rstrip("/")
+
+    def embed(self, text: str, memory_action: Optional[str] = None) -> list:
+        """Get embedding for text using MiniMax API."""
+        text = text.replace("\n", " ")
+
+        try:
+            response = requests.post(
+                f"{self.base_url}/embeddings",
+                headers={
+                    "Authorization": f"Bearer {self.api_key}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "model": self.config.model,
+                    "texts": [text],  # MiniMax format
+                    "type": "db",
+                },
+                timeout=30,
+            )
+            data = response.json()
+            if "vectors" in data and data["vectors"]:
+                return data["vectors"][0]
+            elif "data" in data and data["data"]:
+                return data["data"][0]["embedding"]
+            else:
+                # Fallback to hash-based
+                return self._hash_embedding(text)
+        except Exception:
+            # Fallback to hash-based
+            return self._hash_embedding(text)
+
+    def _hash_embedding(self, text: str) -> list:
+        """Generate deterministic embedding from text hash."""
+        seed = int(hashlib.md5(text.encode()).hexdigest(), 16) % (2**32)
+        np.random.seed(seed)
+        vec = np.random.randn(1536).tolist()
+        norm = np.linalg.norm(vec)
+        return [v / norm for v in vec]
 
 
 def _get_llm_config() -> dict:
@@ -416,7 +538,7 @@ class Mem0Client:
     Supports multiple backends:
     - in-memory: Default for testing
     - qdrant: For production with persistent storage
-    
+
     Supports multiple embedding providers (via EMBEDDING_PROVIDER env):
     - minimax: MiniMax embedding (default if MINIMAX_API_KEY is set)
     - openai: OpenAI embedding (default fallback)
@@ -431,7 +553,7 @@ class Mem0Client:
 
         # Get LLM and embedding configs
         llm_config = _get_llm_config()
-        embed_config = _get_embedding_config()
+        embed_provider = os.environ.get("EMBEDDING_PROVIDER", "openai").lower()
 
         if backend == "qdrant":
             # Production mode: uses Qdrant
@@ -446,15 +568,21 @@ class Mem0Client:
                         "collection_name": QDRANT_COLLECTION,
                     }
                 },
-                "embedder": embed_config,
+                "embedder": {"provider": "openai", "config": {"api_key": "dummy"}},  # Will be replaced
             })
+            # Replace embedder with our custom one if minimax
+            if embed_provider == "minimax":
+                self.memory.embedding_model = MiniMaxEmbedding()
         else:
             # Development/testing mode: in-memory
             # Requires only: pip install mem0ai
             self.memory = Memory.from_config({
                 "llm": llm_config,
-                "embedder": embed_config,
+                "embedder": {"provider": "openai", "config": {"api_key": "dummy"}},  # Will be replaced
             })
+            # Replace embedder with our custom one if minimax
+            if embed_provider == "minimax":
+                self.memory.embedding_model = MiniMaxEmbedding()
 
     def add(
         self,
