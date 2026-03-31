@@ -9,3 +9,14 @@ build/
 .env
 .env.local
 .env.*.local
+node_modules/
+*.pyc
+__pycache__/
+*.egg-info/
+dist/
+build/
+
+# Environment files (keep .env.example)
+.env
+.env.local
+.env.*.local
