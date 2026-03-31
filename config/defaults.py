@@ -19,11 +19,14 @@ def _env_int(key: str, default: str) -> int:
 def _env_float(key: str, default: str) -> float:
     return float(_env(key, default))
 
-# Storage paths
-SKILL_DIR = Path.home() / ".openclaw" / "skills" / "memory"
+# Storage paths - 跨 worktree 共享的固定目录
+SKILL_DIR = Path.home() / ".skill-memory"
 MEMORY_DIR = SKILL_DIR / "memory"
-LONG_TERM_FILE = SKILL_DIR / "long_term.md"
-SQLITE_DB = SKILL_DIR / "memory.db"
+KNOWLEDGE_DIR = SKILL_DIR / "knowledge"
+DOMAINS_DIR = KNOWLEDGE_DIR / "domains"
+LONG_TERM_FILE = KNOWLEDGE_DIR / "MEMORY.md"
+GRAPH_FILE = SKILL_DIR / "graph.json"
+SQLITE_DB = MEMORY_DIR / "memory.db"
 
 # Qdrant configuration
 QDRANT_HOST = _env("QDRANT_HOST", "localhost")

@@ -1,141 +1,122 @@
 # skill-memory
 
-OpenClaw-style 3-tier memory system with hybrid search.
+OpenClaw-style 3-tier memory system with hybrid search. Cross-workspace shared memory.
 
 ## Architecture
 
-Based on OpenClaw's memory architecture:
+### Storage Structure
 
-| Tier | OpenClaw | Storage | Lifecycle |
-|------|----------|---------|-----------|
-| Working | Session context | Memory | Session only |
-| Mid-term | memory/YYYY-MM-DD.md | Qdrant | 7 days TTL |
-| Long-term | MEMORY.md | Qdrant + SQLite | Permanent |
+```
+~/.skill-memory/              ← Fixed location, shared across worktrees
+├── memory/                   ← Mem0/Qdrant storage
+│   └── memory.db
+├── knowledge/               ← Organized knowledge
+│   ├── MEMORY.md           ← Long-term memory (referenceable)
+│   └── domains/           ← Domain knowledge
+│       ├── python.md
+│       ├── qoder.md
+│       └── project-a.md
+└── graph.json              ← Knowledge graph (nodes + edges)
+```
+
+### Three-tier Memory
+
+| Tier | Storage | Lifecycle |
+|------|---------|-----------|
+| Working | Session context | Session only |
+| Mid-term | Qdrant | 7 days TTL |
+| Long-term | MEMORY.md | Permanent |
 
 ## Features
 
 - **3-tier memory**: Working → Mid-term → Long-term
 - **Hybrid search**: Vector + Keyword + MMR + Temporal decay
-- **OpenClaw compatible**: Similar to MEMORY.md and daily notes
-- **SQLite + Qdrant**: Reliable storage backend
+- **Cross-workspace**: Shared storage at `~/.skill-memory/`
+- **Knowledge organization**: MEMORY.md + domains + graph
 
 ## Installation
 
-### One-click install
+### Load as Qoder Skill
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/jiazhizhuo/skill-memory/main/install.sh | bash
+# Link to Qoder skills directory
+ln -s ~/git/jiazhizhuo/skill-memory ~/.qoder/skills/skill-memory
 ```
 
-### Manual install
+### Prerequisites
+
+**Qdrant** (required for persistent storage):
 
 ```bash
-git clone https://github.com/jiazhizhuo/skill-memory.git ~/.openclaw/skills/memory
-cd ~/.openclaw/skills/memory
-pip install -e .
-```
-
-## Prerequisites
-
-### Option A: In-Memory Mode (Default, No Setup)
-
-```bash
-# Just install, no external dependencies needed
-pip install mem0ai
-```
-
-### Option B: Qdrant Mode (Production, Persistent)
-
-```bash
-# Start Qdrant via Docker
+# Docker
 docker run -d -p 6333:6333 qdrant/qdrant
 
-# Or via Homebrew (macOS)
-brew install qdrant
-qdrant
-
-# Set environment variable
-export MEM0_BACKEND=qdrant
+# Or binary (macOS arm64)
+curl -L https://github.com/qdrant/qdrant/releases/latest/download/qdrant-aarch64-apple-darwin.tar.gz | tar -xz
+./qdrant &
 ```
 
-### Option C: Other Vector Databases
+### Python Dependencies
 
-Mem0 also supports Chroma, PGVector, Pinecone, Redis, etc. See [Mem0 docs](https://docs.mem0.ai/components/vectordbs/overview).
+```bash
+pip install mem0ai qdrant-client
+```
 
 ## Usage
 
 ### CLI Commands
 
 ```bash
-# Add memory
-memory add "用户喜欢简洁的代码风格"
-memory add "重要项目信息" --tier long
-memory add "临时笔记" --importance 0.3
-
-# Search (hybrid search with MMR)
+memory add "用户偏好简洁代码" --tier long
+memory add "项目配置" --tier mid
 memory search "代码风格偏好"
-memory search "项目配置" --limit 10
-
-# List
 memory list --tier mid
-memory today
-memory long
-
-# Stats
-memory stats
-
-# Delete
-memory delete abc123
+memory long                    # View long-term memory
+memory stats                  # View statistics
 ```
 
 ### Integration with OpenClaw
-
-The skill can be used as a tool by OpenClaw agents:
 
 ```bash
 //memory add 用户偏好深色主题
 //memory search 用户的视觉偏好
 ```
 
+### OpenClaw Agent Integration
+
+Period organization can be triggered by OpenClaw agent:
+
+```bash
+# Via OpenClaw hooks (SessionStart, UserPromptSubmit)
+# Or via cron
+openclaw memory organize
+
+# Organization includes:
+# - Cluster similar memories
+# - Build domain knowledge
+# - Update MEMORY.md
+# - Generate knowledge graph
+```
+
 ## Configuration
 
-### Quick Setup with .env File (Recommended)
+### .env File
 
 ```bash
-# Copy example config
 cp .env.example .env
-
 # Edit with your API keys
-nano .env
-
-# CLI automatically loads .env
-memory add "test"
 ```
 
-### Manual Environment Variables
+### Environment Variables
 
 ```bash
-# MiniMax Configuration
-export LLM_PROVIDER=minimax
-export EMBEDDING_PROVIDER=minimax
-export MINIMAX_API_KEY=your_api_key
-export MEM0_BACKEND=qdrant
+export SKILL_MEMORY_LLM_PROVIDER=minimax
+export SKILL_MEMORY_EMBEDDING_PROVIDER=minimax
+export SKILL_MEMORY_MINIMAX_API_KEY=your_key
+export SKILL_MEMORY_BACKEND=qdrant
 ```
-
-### Configuration Options
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `MEM0_BACKEND` | `in-memory` | `in-memory` or `qdrant` |
-| `LLM_PROVIDER` | `openai` | `openai` or `minimax` |
-| `EMBEDDING_PROVIDER` | `openai` | `openai` or `minimax` |
-| `MINIMAX_API_KEY` | - | MiniMax API key |
-| `QDRANT_HOST` | `localhost` | Qdrant server host |
-| `QDRANT_PORT` | `6333` | Qdrant server port |
 
 ## Hybrid Search
-
-Based on OpenClaw's search architecture:
 
 ```
 Combined Score = 0.7 * Vector + 0.3 * Keyword
