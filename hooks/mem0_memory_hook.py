@@ -27,6 +27,7 @@ from config import load_config
 from memory_manager import DualLayerMemoryManager
 from transcript_parser import TranscriptParser
 from hook_config import load_hook_config
+from qdrant_monitor import QdrantMonitor
 
 
 class Mem0MemoryHook:
@@ -36,6 +37,17 @@ class Mem0MemoryHook:
     """
 
     def __init__(self, config_path: Optional[str] = None):
+        # Step 1: 确保 Qdrant 正在运行（自动检查和启动）
+        try:
+            monitor = QdrantMonitor()
+            success, message = monitor.ensure_running(auto_start=True)
+            if not success:
+                print(f"⚠️  WARNING: {message}", file=sys.stderr)
+                print("⚠️  Memory features may be limited until Qdrant is running.", file=sys.stderr)
+        except Exception as e:
+            print(f"⚠️  WARNING: Failed to check Qdrant status: {e}", file=sys.stderr)
+        
+        # Step 2: 初始化其他组件
         self.hook_config = load_hook_config(config_path)
         self.config = load_config()
         self.memory_manager = DualLayerMemoryManager(self.config)
@@ -391,6 +403,7 @@ from config import load_config
 from memory_manager import DualLayerMemoryManager
 from transcript_parser import TranscriptParser
 from hook_config import load_hook_config
+from qdrant_monitor import QdrantMonitor
 
 
 class Mem0MemoryHook:
@@ -400,6 +413,17 @@ class Mem0MemoryHook:
     """
 
     def __init__(self, config_path: Optional[str] = None):
+        # Step 1: 确保 Qdrant 正在运行（自动检查和启动）
+        try:
+            monitor = QdrantMonitor()
+            success, message = monitor.ensure_running(auto_start=True)
+            if not success:
+                print(f"⚠️  WARNING: {message}", file=sys.stderr)
+                print("⚠️  Memory features may be limited until Qdrant is running.", file=sys.stderr)
+        except Exception as e:
+            print(f"⚠️  WARNING: Failed to check Qdrant status: {e}", file=sys.stderr)
+        
+        # Step 2: 初始化其他组件
         self.hook_config = load_hook_config(config_path)
         self.config = load_config()
         self.memory_manager = DualLayerMemoryManager(self.config)
@@ -755,6 +779,7 @@ from config import load_config
 from memory_manager import DualLayerMemoryManager
 from transcript_parser import TranscriptParser
 from hook_config import load_hook_config
+from qdrant_monitor import QdrantMonitor
 
 
 class Mem0MemoryHook:
@@ -764,6 +789,17 @@ class Mem0MemoryHook:
     """
 
     def __init__(self, config_path: Optional[str] = None):
+        # Step 1: 确保 Qdrant 正在运行（自动检查和启动）
+        try:
+            monitor = QdrantMonitor()
+            success, message = monitor.ensure_running(auto_start=True)
+            if not success:
+                print(f"⚠️  WARNING: {message}", file=sys.stderr)
+                print("⚠️  Memory features may be limited until Qdrant is running.", file=sys.stderr)
+        except Exception as e:
+            print(f"⚠️  WARNING: Failed to check Qdrant status: {e}", file=sys.stderr)
+        
+        # Step 2: 初始化其他组件
         self.hook_config = load_hook_config(config_path)
         self.config = load_config()
         self.memory_manager = DualLayerMemoryManager(self.config)
