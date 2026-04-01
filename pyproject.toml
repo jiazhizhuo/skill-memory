@@ -1,42 +1,52 @@
-[build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
-
 [project]
 name = "skill-memory"
-version = "0.1.0"
-description = "OpenClaw-style memory skill with 3-tier memory and hybrid search"
+version = "1.0.0"
+description = "Qoder + Mem0 双层记忆系统，支持向量检索和持久存储"
 readme = "README.md"
-requires-python = ">=3.10"
-license = "MIT"
+requires-python = ">=3.9"
 authors = [
-    { name = "jiazhizhuo" }
+    {name = "Qoder Community"}
 ]
-keywords = ["openclaw", "memory", "skill", "hybrid-search"]
+keywords = ["ai", "memory", "agent", "mem0", "qoder", "openclaw"]
 classifiers = [
-    "Development Status :: 1 - Planning",
+    "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
-    "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
 ]
+
 dependencies = [
-    "mem0ai>=0.1.0",
+    "python-dotenv>=1.0.0",
+    "requests>=2.31.0",
 ]
 
 [project.optional-dependencies]
-qdrant = [
-    "qdrant-client>=1.7.0",  # For persistent storage mode
-]
-dev = [
-    "pytest>=7.0",
-    "pytest-asyncio>=0.21",
+mem0 = [
+    "mem0ai>=1.0.0",
 ]
 
 [project.scripts]
-memory = "scripts.memory:main"
+memory = "cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["scripts"]
+packages = ["src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py39"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W"]
+ignore = ["E501"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_functions = ["test_*"]

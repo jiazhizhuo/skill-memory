@@ -1,266 +1,131 @@
-# skill-memory
+# Skill Memory
 
-OpenClaw-style 3-tier memory system with hybrid search. Cross-workspace shared memory.
+跨 Workspace 的 AI Agent 持久记忆系统。基于 Mem0 + Qdrant 实现语义检索，支持 MiniMax/OpenAI 等 LLM 提供商。
 
-## Architecture
-
-### Storage Structure
+## 工作机制
 
 ```
-~/.skill-memory/              ← Fixed location, shared across worktrees
-├── memory/                   ← Mem0/Qdrant storage
-│   └── memory.db
-├── knowledge/               ← Organized knowledge
-│   ├── MEMORY.md           ← Long-term memory (referenceable)
-│   └── domains/           ← Domain knowledge
-│       ├── python.md
-│       ├── qoder.md
-│       └── project-a.md
-└── graph.json              ← Knowledge graph (nodes + edges)
+对话发生 → AgentResponseComplete Hook 触发 → 提取关键信息 → 存入 Qdrant
+                                              ↓ 重要性 >= 0.8
+                                          同步写入 MEMORY.md
 ```
 
-### Three-tier Memory
+### 触发方式
 
-| Tier | Storage | Lifecycle |
-|------|---------|-----------|
-| Working | Session context | Session only |
-| Mid-term | Qdrant | 7 days TTL |
-| Long-term | MEMORY.md | Permanent |
+- **自动触发**：Qoder `AgentResponseComplete` 事件（每次 AI 回复后）
+- **手动导入**：`memory import --file transcript.jsonl`
 
-## Features
+### 配置 Hook
 
-- **3-tier memory**: Working → Mid-term → Long-term
-- **Hybrid search**: Vector + Keyword + MMR + Temporal decay
-- **Cross-workspace**: Shared storage at `~/.skill-memory/`
-- **Knowledge organization**: MEMORY.md + domains + graph
+`~/.qoder/settings.json`:
 
-## Installation
+```json
+{
+  "hooks": {
+    "AgentResponseComplete": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.skill-memory/hooks/mem0_memory_hook.py"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
 
-### Load as Qoder Skill
+## 快速配置
+
+### 1. 启动 Qdrant
 
 ```bash
-# Link to Qoder skills directory
-ln -s ~/git/jiazhizhuo/skill-memory ~/.qoder/skills/skill-memory
+docker run -d -p 6333:6333 -p 6334:6334 qdrant/qdrant
 ```
 
-### Prerequisites
+### 2. 配置 .env
 
-**Qdrant** (required for persistent storage):
+`~/.skill-memory/.env`:
 
 ```bash
-# Docker
-docker run -d -p 6333:6333 qdrant/qdrant
+# MiniMax (推荐)
+SKILL_MEMORY_LLM_PROVIDER=minimax
+SKILL_MEMORY_LLM_MODEL=MiniMax-M2.5
+SKILL_MEMORY_MINIMAX_LLM_BASE_URL=https://api.minimaxi.com/v1
+SKILL_MEMORY_MINIMAX_EMBEDDING_MODEL=embo-01
+SKILL_MEMORY_API_KEY=your_key
 
-# Or binary (macOS arm64)
-curl -L https://github.com/qdrant/qdrant/releases/latest/download/qdrant-aarch64-apple-darwin.tar.gz | tar -xz
-./qdrant &
+# 或 OpenAI
+# SKILL_MEMORY_LLM_PROVIDER=openai
+# SKILL_MEMORY_API_KEY=sk-xxx
 ```
 
-### Python Dependencies
+### 3. Hook 配置
+
+`~/.skill-memory/config/hook.toml`:
+
+```toml
+[filter]
+min_length = 30           # 最小内容长度
+max_per_round = 5          # 每轮最多保存条数
+skip_patterns = thanks, /help  # 跳过的模式
+
+[memory]
+tier = auto               # auto/short/long
+promotion_threshold = 0.75 # 晋升到 MEMORY.md 的阈值
+```
+
+## CLI 命令
 
 ```bash
-pip install mem0ai qdrant-client
+# 添加记忆
+python3 -m src.cli add "用户偏好深色主题" --importance 0.8
+
+# 搜索记忆
+python3 -m src.cli search "代码风格"
+
+# 列出记忆
+python3 -m src.cli list --limit 20
+
+# 导入历史对话
+python3 -m src.cli import --file transcript.jsonl --tier long
+
+# 查看统计
+python3 -m src.cli stats
 ```
 
-## Usage
+## 支持的提供商
 
-### CLI Commands
+| Provider | LLM Model | Embedding |
+|----------|-----------|-----------|
+| MiniMax | MiniMax-M2.5 | embo-01 |
+| OpenAI | gpt-4o-mini | text-embedding-3-small |
+| 其他 | OpenAI compatible | OpenAI compatible |
 
-```bash
-memory add "用户偏好简洁代码" --tier long
-memory add "项目配置" --tier mid
-memory search "代码风格偏好"
-memory list --tier mid
-memory long                    # View long-term memory
-memory stats                  # View statistics
-```
-
-### Integration with OpenClaw
-
-```bash
-//memory add 用户偏好深色主题
-//memory search 用户的视觉偏好
-```
-
-### OpenClaw Agent Integration
-
-Period organization can be triggered by OpenClaw agent:
-
-```bash
-# Via OpenClaw hooks (SessionStart, UserPromptSubmit)
-# Or via cron
-openclaw memory organize
-
-# Organization includes:
-# - Cluster similar memories
-# - Build domain knowledge
-# - Update MEMORY.md
-# - Generate knowledge graph
-```
-
-## Configuration
-
-### .env File
-
-```bash
-cp .env.example .env
-# Edit with your API keys
-```
-
-### Environment Variables
-
-```bash
-export SKILL_MEMORY_LLM_PROVIDER=minimax
-export SKILL_MEMORY_EMBEDDING_PROVIDER=minimax
-export SKILL_MEMORY_MINIMAX_API_KEY=your_key
-export SKILL_MEMORY_BACKEND=qdrant
-```
-
-## Hybrid Search
+## 存储结构
 
 ```
-Combined Score = 0.7 * Vector + 0.3 * Keyword
-                        ↓
-                 MMR Reranking
-                 (diversity)
-                        ↓
-                Temporal Decay
-                (recency bias)
+~/.skill-memory/
+├── .env                 # API 配置
+├── config/hook.toml   # Hook 行为配置
+├── hooks/              # Qoder Hook 脚本
+│   └── mem0_memory_hook.py
+├── knowledge/          # 长期记忆
+│   └── MEMORY.md
+└── src/                # 核心代码
 ```
 
-## License
+## 环境变量
 
-MIT
-# skill-memory
+| 变量 | 说明 | 默认值 |
+|------|------|--------|
+| `SKILL_MEMORY_API_KEY` | API Key | - |
+| `SKILL_MEMORY_LLM_PROVIDER` | LLM 提供商 | minimax |
+| `SKILL_MEMORY_QDRANT_HOST` | Qdrant 主机 | localhost |
+| `SKILL_MEMORY_QDRANT_PORT` | Qdrant 端口 | 6333 |
+| `SKILL_MEMORY_QDRANT_COLLECTION` | Collection 名 | skill_memory |
 
-OpenClaw-style 3-tier memory system with hybrid search. Cross-workspace shared memory.
+---
 
-## Architecture
-
-### Storage Structure
-
-```
-~/.skill-memory/              ← Fixed location, shared across worktrees
-├── memory/                   ← Mem0/Qdrant storage
-│   └── memory.db
-├── knowledge/               ← Organized knowledge
-│   ├── MEMORY.md           ← Long-term memory (referenceable)
-│   └── domains/           ← Domain knowledge
-│       ├── python.md
-│       ├── qoder.md
-│       └── project-a.md
-└── graph.json              ← Knowledge graph (nodes + edges)
-```
-
-### Three-tier Memory
-
-| Tier | Storage | Lifecycle |
-|------|---------|-----------|
-| Working | Session context | Session only |
-| Mid-term | Qdrant | 7 days TTL |
-| Long-term | MEMORY.md | Permanent |
-
-## Features
-
-- **3-tier memory**: Working → Mid-term → Long-term
-- **Hybrid search**: Vector + Keyword + MMR + Temporal decay
-- **Cross-workspace**: Shared storage at `~/.skill-memory/`
-- **Knowledge organization**: MEMORY.md + domains + graph
-
-## Installation
-
-### Load as Qoder Skill
-
-```bash
-# Link to Qoder skills directory
-ln -s ~/git/jiazhizhuo/skill-memory ~/.qoder/skills/skill-memory
-```
-
-### Prerequisites
-
-**Qdrant** (required for persistent storage):
-
-```bash
-# Docker
-docker run -d -p 6333:6333 qdrant/qdrant
-
-# Or binary (macOS arm64)
-curl -L https://github.com/qdrant/qdrant/releases/latest/download/qdrant-aarch64-apple-darwin.tar.gz | tar -xz
-./qdrant &
-```
-
-### Python Dependencies
-
-```bash
-pip install mem0ai qdrant-client
-```
-
-## Usage
-
-### CLI Commands
-
-```bash
-memory add "用户偏好简洁代码" --tier long
-memory add "项目配置" --tier mid
-memory search "代码风格偏好"
-memory list --tier mid
-memory long                    # View long-term memory
-memory stats                  # View statistics
-```
-
-### Integration with OpenClaw
-
-```bash
-//memory add 用户偏好深色主题
-//memory search 用户的视觉偏好
-```
-
-### OpenClaw Agent Integration
-
-Period organization can be triggered by OpenClaw agent:
-
-```bash
-# Via OpenClaw hooks (SessionStart, UserPromptSubmit)
-# Or via cron
-openclaw memory organize
-
-# Organization includes:
-# - Cluster similar memories
-# - Build domain knowledge
-# - Update MEMORY.md
-# - Generate knowledge graph
-```
-
-## Configuration
-
-### .env File
-
-```bash
-cp .env.example .env
-# Edit with your API keys
-```
-
-### Environment Variables
-
-```bash
-export SKILL_MEMORY_LLM_PROVIDER=minimax
-export SKILL_MEMORY_EMBEDDING_PROVIDER=minimax
-export SKILL_MEMORY_MINIMAX_API_KEY=your_key
-export SKILL_MEMORY_BACKEND=qdrant
-```
-
-## Hybrid Search
-
-```
-Combined Score = 0.7 * Vector + 0.3 * Keyword
-                        ↓
-                 MMR Reranking
-                 (diversity)
-                        ↓
-                Temporal Decay
-                (recency bias)
-```
-
-## License
-
-MIT
+MIT License

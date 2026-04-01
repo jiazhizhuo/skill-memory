@@ -1,186 +1,170 @@
 ---
 name: skill-memory
-description: memory system with hybrid search.记忆分层、语义搜索、混合搜索(MMR+时间衰减)。智能触发、自动回忆、自动保存。跨 worktree 共享。
+description: Qoder + Mem0 双层记忆系统 - 跨 Workspace AI Agent 持久记忆
+version: 2.0.0
 ---
 
-# skill-memory
+# Skill Memory
 
-三层记忆系统，基于 Mem0 + Qdrant 实现，支持跨 worktree 共享。
+跨 Workspace 的 AI Agent 持久记忆系统。基于 Mem0 + Qdrant 实现语义检索，支持 MiniMax/OpenAI 等 LLM 提供商。
 
-## 存储架构
-
-```
-~/.skill-memory/              ← 固定位置，跨 worktree 共享
-├── memory/                   ← 零散记忆（mem0/qdrant）
-│   └── memory.db
-├── knowledge/               ← 规整后的知识
-│   ├── MEMORY.md            ← 长期记忆（可引用）
-│   └── domains/             ← 领域知识
-│       ├── python.md
-│       ├── qoder.md
-│       └── project-a.md
-└── graph.json               ← 知识图谱（节点+边）
-```
-
-## 三层记忆
+## 工作机制
 
 ```
-工作记忆 (Working)     → 会话上下文，单次会话
-中期记忆 (Mid-term)    → Daily notes 风格，7天过期
-长期记忆 (Long-term)  → MEMORY.md 风格，永久存储
+对话发生 → AgentResponseComplete Hook → 提取关键信息 → 存入 Qdrant
+                                              ↓ 重要性 >= 0.75
+                                          同步写入 MEMORY.md
 ```
 
-## 智能触发（自动执行）
+### 触发方式
 
-### 自动 Search（回忆）
+- **自动触发**：`AgentResponseComplete` 事件（每次 AI 回复后自动触发）
+- **手动导入**：`memory import --file transcript.jsonl`
 
-| 触发模式 | 示例 | 行为 |
-|---------|------|------|
-| 时间参照 | "之前"、"上次"、"记得" | 搜索相关记忆 |
-| 偏好询问 | "我之前用什么"、"我的习惯是" | 搜索用户偏好 |
-| 会话开始 | 新会话启动 | 加载相关背景 |
+## 核心功能
 
-### 自动 Save（保存）
+### 1. 自动记忆保存
+- Hook 触发后自动提取对话关键信息
+- 计算重要性分数（0.0-1.0）
+- 自动分类（preference/project/domain/general）
 
-| 触发模式 | 示例 | 行为 |
-|---------|------|------|
-| 明确指令 | "记住"、"以后要记住" | 保存到长期记忆 |
-| 偏好表达 | "我喜欢/讨厌"、"通常用" | 保存偏好 |
-| 项目配置 | "这个项目用XX" | 保存项目上下文 |
+### 2. 智能检索
+- 向量语义搜索（基于文本嵌入）
+- 支持 MiniMax/OpenAI Embedding
 
-## 命令（显式调用）
+### 3. 历史导入
+- 支持 Qoder transcript.jsonl 格式
+- 支持批量导入目录
 
-```
-//memory add <内容> --tier long   添加到长期记忆
-//memory search <查询>            混合搜索
-//memory list --tier mid          列出中期记忆
-//memory long                     查看长期记忆
-//memory stats                    查看统计
-```
+## 安装
 
-## OpenClaw Agent 集成
+### 1. 启动 Qdrant
 
-定期规整可通过 OpenClaw agent 触发：
-
-```
-触发方式：
-- OpenClaw Hook: SessionStart/UserPromptSubmit
-- 定时任务: cron 或 OpenClaw cron
-- 手动触发: //memory organize
-
-规整内容：
-- 聚类相似记忆
-- 构建领域知识
-- 更新 MEMORY.md
-- 生成知识图谱
+```bash
+docker run -d -p 6333:6333 -p 6334:6334 qdrant/qdrant
 ```
 
-## 前置条件
+### 2. 配置环境变量
 
-1. Qdrant: `docker run -d -p 6333:6333 qdrant/qdrant`
-2. pip install -e .
+`~/.skill-memory/.env`:
 
-## 搜索特性
+```bash
+# MiniMax (推荐)
+SKILL_MEMORY_LLM_PROVIDER=minimax
+SKILL_MEMORY_LLM_MODEL=MiniMax-M2.5
+SKILL_MEMORY_MINIMAX_LLM_BASE_URL=https://api.minimaxi.com/v1
+SKILL_MEMORY_MINIMAX_EMBEDDING_MODEL=embo-01
+SKILL_MEMORY_API_KEY=your_key
 
-- 向量搜索（语义理解）
-- 关键词搜索（精确匹配）
-- MMR 重排（多样性）
-- 时间衰减（近期优先）
+# 或 OpenAI
+# SKILL_MEMORY_LLM_PROVIDER=openai
+# SKILL_MEMORY_API_KEY=sk-xxx
+```
 
-## 触发关键词
+### 3. 配置 Qoder Hook
 
-**Search：** `之前`、`上次`、`记得`、`我之前`、`我的习惯`
-**Save：** `记住`、`以后要`、`我用`、`偏好`、`习惯`
+`~/.qoder/settings.json`:
+
+```json
+{
+  "hooks": {
+    "AgentResponseComplete": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.skill-memory/hooks/mem0_memory_hook.py"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+### 4. 配置 Hook 行为
+
+`~/.skill-memory/config/hook.toml`:
+
+```toml
+[filter]
+min_length = 30           # 最小内容长度
+max_per_round = 5        # 每轮最多保存条数
+skip_patterns = thanks, /help
+
+[memory]
+tier = auto
+promotion_threshold = 0.75  # 晋升到 MEMORY.md 的阈值
+```
+
+## CLI 命令
+
+```bash
+# 添加记忆
+python3 -m src.cli add "用户偏好深色主题" --importance 0.8
+
+# 搜索记忆
+python3 -m src.cli search "代码风格"
+
+# 列出记忆
+python3 -m src.cli list --limit 20
+
+# 导入历史对话
+python3 -m src.cli import --file transcript.jsonl --tier long
+
+# 查看统计
+python3 -m src.cli stats
+```
+
+## 支持的提供商
+
+| Provider | LLM Model | Embedding |
+|----------|-----------|-----------|
+| MiniMax | MiniMax-M2.5 | embo-01 |
+| OpenAI | gpt-4o-mini | text-embedding-3-small |
+
+## 存储结构
+
+```
+~/.skill-memory/
+├── .env                      # API 配置
+├── config/hook.toml       # Hook 行为配置
+├── hooks/                    # Qoder Hook 脚本
+│   └── mem0_memory_hook.py
+├── knowledge/               # 长期记忆
+│   └── MEMORY.md
+└── src/                     # 核心代码
+```
+
+## 环境变量
+
+| 变量 | 说明 | 默认值 |
+|------|------|--------|
+| `SKILL_MEMORY_API_KEY` | API Key | - |
+| `SKILL_MEMORY_LLM_PROVIDER` | LLM 提供商 | minimax |
+| `SKILL_MEMORY_QDRANT_HOST` | Qdrant 主机 | localhost |
+| `SKILL_MEMORY_QDRANT_PORT` | Qdrant 端口 | 6333 |
+| `SKILL_MEMORY_QDRANT_COLLECTION` | Collection 名 | skill_memory |
+
+## 常见问题
+
+### Q: 记忆没有自动保存？
+
+检查：
+1. `~/.qoder/settings.json` 中 Hook 是否配置为 `AgentResponseComplete`
+2. `~/.skill-memory/config/hook.toml` 是否有重复 section
+3. Hook 脚本是否有执行权限
+
+### Q: Hook 报错 "section 'hook' already exists"？
+
+删除 `~/.skill-memory/config/hook.toml` 并重新创建（确保无重复内容）
+
+### Q: Qdrant 启动失败？
+
+1. 检查 Docker 是否运行
+2. 确认端口 6333 未被占用
+3. 或下载 Qdrant 二进制直接运行
+
 ---
-name: skill-memory
-description: memory system with hybrid search.记忆分层、语义搜索、混合搜索(MMR+时间衰减)。智能触发、自动回忆、自动保存。跨 worktree 共享。
----
 
-# skill-memory
-
-三层记忆系统，基于 Mem0 + Qdrant 实现，支持跨 worktree 共享。
-
-## 存储架构
-
-```
-~/.skill-memory/              ← 固定位置，跨 worktree 共享
-├── memory/                   ← 零散记忆（mem0/qdrant）
-│   └── memory.db
-├── knowledge/               ← 规整后的知识
-│   ├── MEMORY.md            ← 长期记忆（可引用）
-│   └── domains/             ← 领域知识
-│       ├── python.md
-│       ├── qoder.md
-│       └── project-a.md
-└── graph.json               ← 知识图谱（节点+边）
-```
-
-## 三层记忆
-
-```
-工作记忆 (Working)     → 会话上下文，单次会话
-中期记忆 (Mid-term)    → Daily notes 风格，7天过期
-长期记忆 (Long-term)  → MEMORY.md 风格，永久存储
-```
-
-## 智能触发（自动执行）
-
-### 自动 Search（回忆）
-
-| 触发模式 | 示例 | 行为 |
-|---------|------|------|
-| 时间参照 | "之前"、"上次"、"记得" | 搜索相关记忆 |
-| 偏好询问 | "我之前用什么"、"我的习惯是" | 搜索用户偏好 |
-| 会话开始 | 新会话启动 | 加载相关背景 |
-
-### 自动 Save（保存）
-
-| 触发模式 | 示例 | 行为 |
-|---------|------|------|
-| 明确指令 | "记住"、"以后要记住" | 保存到长期记忆 |
-| 偏好表达 | "我喜欢/讨厌"、"通常用" | 保存偏好 |
-| 项目配置 | "这个项目用XX" | 保存项目上下文 |
-
-## 命令（显式调用）
-
-```
-//memory add <内容> --tier long   添加到长期记忆
-//memory search <查询>            混合搜索
-//memory list --tier mid          列出中期记忆
-//memory long                     查看长期记忆
-//memory stats                    查看统计
-```
-
-## OpenClaw Agent 集成
-
-定期规整可通过 OpenClaw agent 触发：
-
-```
-触发方式：
-- OpenClaw Hook: SessionStart/UserPromptSubmit
-- 定时任务: cron 或 OpenClaw cron
-- 手动触发: //memory organize
-
-规整内容：
-- 聚类相似记忆
-- 构建领域知识
-- 更新 MEMORY.md
-- 生成知识图谱
-```
-
-## 前置条件
-
-1. Qdrant: `docker run -d -p 6333:6333 qdrant/qdrant`
-2. pip install -e .
-
-## 搜索特性
-
-- 向量搜索（语义理解）
-- 关键词搜索（精确匹配）
-- MMR 重排（多样性）
-- 时间衰减（近期优先）
-
-## 触发关键词
-
-**Search：** `之前`、`上次`、`记得`、`我之前`、`我的习惯`
-**Save：** `记住`、`以后要`、`我用`、`偏好`、`习惯`
+MIT License

@@ -1,0 +1,40 @@
+# skill-memory Hook Configuration
+# Controls hook trigger behavior
+
+[hook]
+# Trigger mode:
+#   - auto: auto-detect (AgentResponseComplete or Stop)
+#   - single: single message mode (AgentResponseComplete)
+#   - transcript: full transcript mode (Stop)
+mode = auto
+
+[filter]
+# Minimum content length (characters)
+min_length = 30
+
+# Maximum save count (per conversation round)
+max_per_round = 5
+
+# Skip patterns (comma-separated)
+skip_patterns = thanks, thank you, goodbye, bye, /stop, /help
+
+[memory]
+# Memory tier:
+#   - auto: auto-select based on importance
+#   - short: Mem0 only (fast retrieval)
+#   - long: MEMORY.md only (persistent backup)
+tier = auto
+
+# Importance threshold (0.0-1.0)
+# Content above this threshold will be written to MEMORY.md
+promotion_threshold = 0.75
+
+# Auto categorize
+auto_categorize = true
+
+[logging]
+# Log level: debug, info, warning, error
+level = info
+
+# Print detailed save information
+verbose = false
