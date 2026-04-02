@@ -99,13 +99,16 @@ memory stats
 ```
 ~/.skill-memory/
 ├── src/                    # 核心代码
+│   ├── platforms/         # 平台适配层
+│   ├── triggers/          # 触发机制
 │   ├── config.py          # 配置管理
 │   ├── mem0_client.py     # Mem0 客户端
 │   ├── memory_manager.py  # 双层记忆管理器
 │   ├── transcript_parser.py
 │   └── cli.py
-├── hooks/                 # Qoder Hooks
-│   └── mem0_memory_hook.py
+├── hooks/                 # Hook 脚本
+│   ├── unified_hook.py    # 跨平台入口（推荐）
+│   └── mem0_memory_hook.py # 旧版（兼容）
 ├── scripts/
 │   └── install.sh         # 安装脚本
 └── knowledge/

@@ -125,7 +125,7 @@ from pathlib import Path
 import sys
 sys.path.insert(0, str(Path.home() / ".skill-memory" / "src"))
 
-from platform import get_adapter, PlatformType
+from platforms import get_adapter, PlatformType
 from memory_manager import DualLayerMemoryManager
 from config import load_config
 
@@ -156,32 +156,6 @@ SKILL_MEMORY_VECTOR_WEIGHT=0.7
 SKILL_MEMORY_KEYWORD_WEIGHT=0.3
 SKILL_MEMORY_PROMOTION_THRESHOLD=0.8
 ```
-
-### Qoder Hooks 配置
-
-**必须配置两个位置**：
-
-1. `~/.qoder/settings.json` (qodercli)
-2. `~/Library/Application Support/Qoder/User/settings.json` (Qoder GUI)
-
-```json
-{
-  "hooks": {
-    "UserPromptSubmit": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "~/.skill-memory/hooks/mem0_memory_hook.py"
-          }
-        ]
-      }
-    ]
-  }
-}
-```
-
-> **支持的事件**：`UserPromptSubmit` (每次消息), `Stop` (/stop 命令时)
 
 ## 使用
 
@@ -230,8 +204,9 @@ memory backup
 │   ├── preferences.md        # 用户偏好
 │   ├── projects/             # 项目知识
 │   └── domains/              # 领域知识
-├── hooks/                    # Qoder Hooks
-│   └── mem0_memory_hook.py
+├── hooks/                    # Hook 脚本
+│   ├── unified_hook.py       # 跨平台统一入口（推荐）
+│   └── mem0_memory_hook.py   # 旧版（兼容）
 └── scripts/                  # 辅助脚本
     └── install.sh
 ```

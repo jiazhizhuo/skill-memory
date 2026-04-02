@@ -212,7 +212,7 @@ Qoder Hook 通过 stdin 传递 JSON：
         "hooks": [
           {
             "type": "command",
-            "command": "~/.skill-memory/hooks/mem0_memory_hook.py"
+            "command": "~/.skill-memory/hooks/unified_hook.py"
           }
         ]
       }
