@@ -1,6 +1,12 @@
 #!/bin/bash
 # Skill Memory 部署脚本
 # 从开发目录同步代码到部署目录，并配置 Qoder/QoderCLI 集成
+#
+# 重要：用户数据保护
+# - knowledge/  (MEMORY.md 等) - 不覆盖
+# - memory/     (Mem0 数据)    - 不覆盖
+# - data/       (其他数据)     - 不覆盖
+# - .env        (配置文件)     - 不覆盖
 
 set -e
 
@@ -11,13 +17,42 @@ QODER_CLI_SETTINGS="$HOME/.qoder/settings.json"
 QODER_GUI_SETTINGS="$HOME/Library/Application Support/Qoder/User/settings.json"
 QODER_SKILLS_DIR="$HOME/.qoder/skills"
 
+# 用户数据目录（永不覆盖）
+USER_DATA_DIRS=(
+    "knowledge"
+    "memory"
+    "data"
+)
+USER_DATA_FILES=(
+    ".env"
+)
+
 echo "=== Skill Memory 部署 ==="
 echo "开发目录: $DEV_DIR"
 echo "部署目录: $DEPLOY_DIR"
 echo ""
 
 # ============================================
-# 步骤 1: 同步代码
+# 步骤 1: 检查用户数据
+# ============================================
+
+echo "[1/6] 检查用户数据..."
+for dir in "${USER_DATA_DIRS[@]}"; do
+    if [ -d "$DEPLOY_DIR/$dir" ]; then
+        file_count=$(find "$DEPLOY_DIR/$dir" -type f 2>/dev/null | wc -l | tr -d ' ')
+        if [ "$file_count" -gt 0 ]; then
+            echo "  保护: $dir/ ($file_count 文件)"
+        fi
+    fi
+done
+for file in "${USER_DATA_FILES[@]}"; do
+    if [ -f "$DEPLOY_DIR/$file" ]; then
+        echo "  保护: $file"
+    fi
+done
+
+# ============================================
+# 步骤 2: 同步代码
 # ============================================
 
 # 检查开发目录
@@ -29,7 +64,7 @@ fi
 # 创建部署目录（如果不存在）
 mkdir -p "$DEPLOY_DIR"
 
-# 需要同步的目录/文件
+# 需要同步的目录/文件（仅功能代码，不包含用户数据）
 SYNC_ITEMS=(
     "src"
     "hooks"
@@ -52,6 +87,9 @@ EXCLUDE_PATTERNS=(
     "docs"
     "tests"
     "TESTING.md"
+    "knowledge"
+    "memory"
+    "data"
 )
 
 # 构建 rsync 排除参数
@@ -60,7 +98,8 @@ for pattern in "${EXCLUDE_PATTERNS[@]}"; do
     EXCLUDE_ARGS="$EXCLUDE_ARGS --exclude=$pattern"
 done
 
-echo "[1/5] 同步代码..."
+echo ""
+echo "[2/6] 同步代码..."
 for item in "${SYNC_ITEMS[@]}"; do
     if [ -e "$DEV_DIR/$item" ]; then
         echo "  $item"
@@ -76,17 +115,22 @@ if [ ! -f "$DEPLOY_DIR/.env" ]; then
     fi
 fi
 
-# 创建必要的运行时目录
-mkdir -p "$DEPLOY_DIR/knowledge"
-mkdir -p "$DEPLOY_DIR/memory"
-mkdir -p "$DEPLOY_DIR/data"
+# 创建必要的运行时目录（不覆盖现有数据）
+echo ""
+echo "[3/6] 创建运行时目录..."
+for dir in "${USER_DATA_DIRS[@]}"; do
+    if [ ! -d "$DEPLOY_DIR/$dir" ]; then
+        mkdir -p "$DEPLOY_DIR/$dir"
+        echo "  创建: $dir/"
+    fi
+done
 
 # ============================================
-# 步骤 2: 安装 Python 包
+# 步骤 4: 安装 Python 包
 # ============================================
 
 echo ""
-echo "[2/5] 安装 Python 包..."
+echo "[4/6] 安装 Python 包..."
 if command -v pip3 &> /dev/null; then
     cd "$DEPLOY_DIR"
     pip3 install -e . --quiet 2>/dev/null || echo "  警告: pip install 失败，请手动安装"
@@ -96,11 +140,11 @@ else
 fi
 
 # ============================================
-# 步骤 3: 配置 Qoder CLI Hook
+# 步骤 5: 配置 Qoder CLI Hook
 # ============================================
 
 echo ""
-echo "[3/5] 配置 Qoder CLI Hook..."
+echo "[5/6] 配置 Qoder CLI Hook..."
 
 configure_hook() {
     local settings_file="$1"
@@ -162,19 +206,19 @@ PYTHON_SCRIPT
 configure_hook "$QODER_CLI_SETTINGS" "qodercli"
 
 # ============================================
-# 步骤 4: 配置 Qoder GUI Hook
+# 步骤 6: 配置 Qoder GUI Hook
 # ============================================
 
 echo ""
-echo "[4/5] 配置 Qoder GUI Hook..."
+echo "[6/6] 配置 Qoder GUI Hook..."
 configure_hook "$QODER_GUI_SETTINGS" "qoder GUI"
 
 # ============================================
-# 步骤 5: 配置 Skill 符号链接
+# 步骤 7: 配置 Skill 符号链接
 # ============================================
 
 echo ""
-echo "[5/5] 配置 Skill 符号链接..."
+echo "配置 Skill 符号链接..."
 
 mkdir -p "$QODER_SKILLS_DIR"
 SKILL_LINK="$QODER_SKILLS_DIR/skill-memory"
@@ -202,6 +246,12 @@ echo "  ✓ 代码同步到 $DEPLOY_DIR"
 echo "  ✓ Qoder CLI Hook: unified_hook.py"
 echo "  ✓ Qoder GUI Hook: unified_hook.py"
 echo "  ✓ Skill 符号链接: skill-memory"
+echo ""
+echo "用户数据保护（未覆盖）:"
+echo "  ✓ knowledge/ - 记忆数据"
+echo "  ✓ memory/    - Mem0 数据"
+echo "  ✓ data/      - 其他数据"
+echo "  ✓ .env       - 配置文件"
 echo ""
 echo "验证部署:"
 echo "  memory stats"

@@ -62,7 +62,27 @@ SKILL_MEMORY_DEPLOY=~/.skill-memory \
 └── README.md         # 文档（从开发目录同步）
 ```
 
-**注意**：部署目录不包含 `.git`、`docs/`、`TESTING.md` 等开发文件。
+**注意**：
+- 部署目录不包含 `.git`、`docs/`、`TESTING.md` 等开发文件
+- 用户数据目录（`knowledge/`、`memory/`、`data/`、`.env`）**永不覆盖**
+
+### 用户数据保护
+
+**重要**：以下目录是用户数据，部署时不会覆盖：
+
+| 目录/文件 | 内容 | 保护措施 |
+|-----------|------|----------|
+| `knowledge/*.md` | MEMORY.md 等记忆数据 | 不提交 git，部署不覆盖 |
+| `memory/` | Mem0/Qdrant 数据 | 不提交 git，部署不覆盖 |
+| `data/` | 其他运行时数据 | 不提交 git，部署不覆盖 |
+| `.env` | API Key 等配置 | 不提交 git，部署不覆盖 |
+
+**开发目录不应该包含用户数据**：
+```bash
+# 清理开发目录中的用户数据
+cd ~/git/skill-memory
+rm -rf knowledge/*.md memory/ data/ .env
+```
 
 ## 1. 项目结构
 
