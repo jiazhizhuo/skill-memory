@@ -35,20 +35,28 @@ class QdrantMonitor:
     def check_health(self) -> bool:
         """
         检查 Qdrant 是否健康运行
-        
-        Returns:
-            True if Qdrant is running and healthy
+
+        注意：Qdrant 1.17+ 版本移除了 /health endpoint，
+        改用根路径 / 或 /collections 来检查
         """
         import urllib.request
         import urllib.error
-        
-        url = f"http://{self.host}:{self.port}/health"
-        
-        try:
-            with urllib.request.urlopen(url, timeout=2) as response:
-                return response.status == 200
-        except (urllib.error.URLError, urllib.error.HTTPError, Exception):
-            return False
+
+        # 尝试多个可用的健康检查端点
+        urls_to_try = [
+            f"http://{self.host}:{self.port}/",
+            f"http://{self.host}:{self.port}/collections",
+        ]
+
+        for url in urls_to_try:
+            try:
+                with urllib.request.urlopen(url, timeout=2) as response:
+                    if response.status == 200:
+                        return True
+            except (urllib.error.URLError, urllib.error.HTTPError, Exception):
+                continue
+
+        return False
     
     def is_process_running(self) -> bool:
         """检查 Qdrant 进程是否在运行"""

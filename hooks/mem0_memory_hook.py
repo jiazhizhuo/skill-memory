@@ -338,16 +338,35 @@ def main():
 
     args = parser.parse_args()
 
-    event_data = {
-        "transcript_path": args.transcript,
-        "session_key": args.session,
-        "last_assistant_message": args.last_message,
-        "user_message": args.user_message,
-        "assistant_message": args.assistant_message,
-    }
+    event_data = {}
 
-    # 过滤空值
-    event_data = {k: v for k, v in event_data.items() if v}
+    # 支持 stdin JSON 输入（Qoder Hook 通过 stdin 传递数据）
+    # 格式: {"session_id": "...", "prompt": "...", "tool_name": "...", "..."}
+    if not sys.stdin.isatty():
+        try:
+            stdin_content = sys.stdin.read()
+            if stdin_content.strip():
+                stdin_data = json.loads(stdin_content)
+                # 映射 Qoder Hook 字段到内部字段
+                event_data = {
+                    "session_key": stdin_data.get("session_id", "unknown"),
+                    "user_message": stdin_data.get("prompt", ""),
+                    "assistant_message": stdin_data.get("response", ""),
+                }
+        except (json.JSONDecodeError, Exception):
+            pass
+
+    # 命令行参数覆盖 stdin 数据
+    if args.transcript:
+        event_data["transcript_path"] = args.transcript
+    if args.session:
+        event_data["session_key"] = args.session
+    if args.last_message:
+        event_data["last_assistant_message"] = args.last_message
+    if args.user_message:
+        event_data["user_message"] = args.user_message
+    if args.assistant_message:
+        event_data["assistant_message"] = args.assistant_message
 
     try:
         hook = Mem0MemoryHook(config_path=args.config)
@@ -714,16 +733,35 @@ def main():
 
     args = parser.parse_args()
 
-    event_data = {
-        "transcript_path": args.transcript,
-        "session_key": args.session,
-        "last_assistant_message": args.last_message,
-        "user_message": args.user_message,
-        "assistant_message": args.assistant_message,
-    }
+    event_data = {}
 
-    # 过滤空值
-    event_data = {k: v for k, v in event_data.items() if v}
+    # 支持 stdin JSON 输入（Qoder Hook 通过 stdin 传递数据）
+    # 格式: {"session_id": "...", "prompt": "...", "tool_name": "...", "..."}
+    if not sys.stdin.isatty():
+        try:
+            stdin_content = sys.stdin.read()
+            if stdin_content.strip():
+                stdin_data = json.loads(stdin_content)
+                # 映射 Qoder Hook 字段到内部字段
+                event_data = {
+                    "session_key": stdin_data.get("session_id", "unknown"),
+                    "user_message": stdin_data.get("prompt", ""),
+                    "assistant_message": stdin_data.get("response", ""),
+                }
+        except (json.JSONDecodeError, Exception):
+            pass
+
+    # 命令行参数覆盖 stdin 数据
+    if args.transcript:
+        event_data["transcript_path"] = args.transcript
+    if args.session:
+        event_data["session_key"] = args.session
+    if args.last_message:
+        event_data["last_assistant_message"] = args.last_message
+    if args.user_message:
+        event_data["user_message"] = args.user_message
+    if args.assistant_message:
+        event_data["assistant_message"] = args.assistant_message
 
     try:
         hook = Mem0MemoryHook(config_path=args.config)
@@ -1090,16 +1128,35 @@ def main():
 
     args = parser.parse_args()
 
-    event_data = {
-        "transcript_path": args.transcript,
-        "session_key": args.session,
-        "last_assistant_message": args.last_message,
-        "user_message": args.user_message,
-        "assistant_message": args.assistant_message,
-    }
+    event_data = {}
 
-    # 过滤空值
-    event_data = {k: v for k, v in event_data.items() if v}
+    # 支持 stdin JSON 输入（Qoder Hook 通过 stdin 传递数据）
+    # 格式: {"session_id": "...", "prompt": "...", "tool_name": "...", "..."}
+    if not sys.stdin.isatty():
+        try:
+            stdin_content = sys.stdin.read()
+            if stdin_content.strip():
+                stdin_data = json.loads(stdin_content)
+                # 映射 Qoder Hook 字段到内部字段
+                event_data = {
+                    "session_key": stdin_data.get("session_id", "unknown"),
+                    "user_message": stdin_data.get("prompt", ""),
+                    "assistant_message": stdin_data.get("response", ""),
+                }
+        except (json.JSONDecodeError, Exception):
+            pass
+
+    # 命令行参数覆盖 stdin 数据
+    if args.transcript:
+        event_data["transcript_path"] = args.transcript
+    if args.session:
+        event_data["session_key"] = args.session
+    if args.last_message:
+        event_data["last_assistant_message"] = args.last_message
+    if args.user_message:
+        event_data["user_message"] = args.user_message
+    if args.assistant_message:
+        event_data["assistant_message"] = args.assistant_message
 
     try:
         hook = Mem0MemoryHook(config_path=args.config)
